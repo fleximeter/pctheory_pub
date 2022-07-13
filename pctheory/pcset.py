@@ -23,24 +23,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import networkx
 import pyvis
-import multiprocessing as mp
 
 from pctheory import pitch, tables, transformations
+
+
+name_tables = tables.create_tables_sc12()
 
 
 class SetClass12:
     """
     Represents a pc-set-class
     """
+    NUM_PC = 12
 
-    def __init__(self, name_tables=None, pcset=None):
+    def __init__(self, pcset=None):
         """
         Creates a SetClass
-        :param name_tables: A list of name tables
         :param pcset: A pcset to initialize the SetClass
         """
-        self._dsym = 12
-        self._ic_vector = [0, 0, 0, 0, 0, 0, 0]
+        self._dsym = SetClass12.NUM_PC * 2
+        self._ic_vector = [0 for i in range(SetClass12.NUM_PC // 2)]
+        self._ic_vector_long = [0 for i in range(SetClass12.NUM_PC // 2 + 1)]
         self._name_carter = ""
         self._name_forte = ""
         self._name_morris = ""
@@ -48,7 +51,6 @@ class SetClass12:
         self._num_forte = 0
         self._pcset = set()
         self._weight_right = True
-        self._tables = name_tables if name_tables is not None else tables.create_tables_set()
         if pcset is not None:
             self.pcset = pcset
 
@@ -82,8 +84,9 @@ class SetClass12:
         Gets derived core associations
         :return: The derived core associations (or None if not derived core)
         """
-        if self.name_prime in self._tables["carterDerivedCoreTable"]:
-            return [name for name in self._tables["carterDerivedCoreTable"][self.name_prime]]
+        global name_tables
+        if self.name_prime in name_tables["carterDerivedCoreTable"]:
+            return [name for name in name_tables["carterDerivedCoreTable"][self.name_prime]]
         else:
             return None
 
@@ -104,14 +107,36 @@ class SetClass12:
         return self._ic_vector
 
     @property
-    def ic_vector_string(self):
+    def ic_vector_long(self):
         """
-        Gets the IC vector
+        Gets the IC vector in long format
+        :return: The IC vector in long format
+        """
+        return self._ic_vector_long
+
+    @property
+    def ic_vector_str(self):
+        """
+        Gets the IC vector as a string
         :return: The IC vector
         """
+        global name_tables
         s = "["
         for a in self._ic_vector:
-            s += str(a)
+            s += name_tables["hexChars"][a]
+        s += "]"
+        return s
+
+    @property
+    def ic_vector_long_str(self):
+        """
+        Gets the IC vector in long format as a string
+        :return: The IC vector in long format
+        """
+        global name_tables
+        s = "["
+        for a in self._ic_vector_long:
+            s += name_tables["hexChars"][a]
         s += "]"
         return s
 
@@ -228,7 +253,7 @@ class SetClass12:
                 for i2 in range(0, len(lists_to_weight[i])):
                     lists_to_weight[i][i2] -= initial_pitch
                     if lists_to_weight[i][i2] < 0:
-                        lists_to_weight[i][i2] += 12
+                        lists_to_weight[i][i2] += SetClass12.NUM_PC
                 lists_to_weight[i].sort()
 
             # Add inverted forms
@@ -242,7 +267,7 @@ class SetClass12:
                 for i2 in range(0, len(lists_to_weight[i])):
                     lists_to_weight[i + len(pclist)][i2] -= initial_pitch
                     if lists_to_weight[i + len(pclist)][i2] < 0:
-                        lists_to_weight[i + len(pclist)][i2] += 12
+                        lists_to_weight[i + len(pclist)][i2] += SetClass12.NUM_PC
                 lists_to_weight[i + len(pclist)].sort()
 
             # Weight lists
@@ -265,7 +290,7 @@ class SetClass12:
         """
         tr = []
         inv = invert(sc.pcset)
-        for i in range(12):
+        for i in range(SetClass12.NUM_PC):
             tr.append(transpose(sc.pcset, i))
             tr.append(transpose(inv, i))
         for pcs in tr:
@@ -278,7 +303,7 @@ class SetClass12:
         Gets the abstract complement of the SetClass
         :return: The abstract complement SetClass
         """
-        csc = SetClass12(self._tables)
+        csc = SetClass12()
         csc.pcset = get_complement(self._pcset)
         return csc
 
@@ -290,7 +315,7 @@ class SetClass12:
         iv = [0, 0, 0, 0, 0, 0, 0, 0]
         c = get_complement(self._pcset)
         utos = transformations.get_utos12()
-        for i in range(12):
+        for i in range(SetClass12.NUM_PC):
             h = [utos[f"T{i}"].transform(self._pcset), utos[f"T{i}I"].transform(self._pcset),
                  utos[f"T{i}M"].transform(self._pcset), utos[f"T{i}MI"].transform(self._pcset)]
             for j in range(4):
@@ -300,7 +325,7 @@ class SetClass12:
                     iv[4 + j] += 1
         return iv
 
-    def get_subset_classes(self):
+    def get_abstract_subset_classes(self):
         """
         Gets a set of subset-classes contained in this SetClass
         :return:
@@ -308,7 +333,7 @@ class SetClass12:
         sub = subsets(self._pcset)
         subset_classes = set()
         for s in sub:
-            subset_classes.add(SetClass12(self._tables, s))
+            subset_classes.add(SetClass12(s))
         return subset_classes
 
     def get_partition2_subset_classes(self):
@@ -319,21 +344,36 @@ class SetClass12:
         p = partitions2(self._pcset)
         p_set = set()
         for part in p:
-            p_set.add((SetClass12(self._tables, part[0]), SetClass12(self._tables, part[1])))
+            p_set.add((SetClass12(part[0]), SetClass12(part[1])))
         return p_set
+
+    @staticmethod
+    def get_set_classes():
+        """
+        Gets all 224 chromatic set-classes
+        :return: A list of all 224 chromatic set-classes
+        """
+        scs = []
+        for name in name_tables["forteToSetNameTable"]:
+            sc = SetClass12()
+            sc.load_from_name(name)
+            scs.append(sc)
+        return scs
 
     def get_z_relation(self):
         """
         Gets the Z-relation of the SetClass
         :return: The Z-relation of the SetClass
         """
-        zset = SetClass12(self._tables)
+        global name_tables
+        zset = SetClass12()
         f = self.name_forte
         if "Z" in f:
-            zset.load_from_name(self._tables["zNameTable"][f])
+            zset.load_from_name(name_tables["zNameTable"][f])
         return zset
 
-    def is_valid_name(self, name: str):
+    @staticmethod
+    def is_valid_name(name: str):
         """
         Determines if a set-class name is valid. Validates prime form, Forte, and Morris names.
         Prime form name format: [xxxx]
@@ -342,15 +382,16 @@ class SetClass12:
         :param name: The name
         :return: A boolean
         """
+        global name_tables
         if "[" in name and "-" in name:
             name = name.split(")")
-            name.split[0] = name.split[0].replace("(", "")
-            if name[0] in self._tables["forteToSetNameTable"] and name[1] in self._tables["setToForteNameTable"]:
+            name[0] = name[0].replace("(", "")
+            if name[0] in name_tables["forteToSetNameTable"] and name[1] in name_tables["setToForteNameTable"]:
                 return True
         elif "-" in name:
-            if name in self._tables["forteToSetNameTable"]:
+            if name in name_tables["forteToSetNameTable"]:
                 return True
-        elif name in self._tables["setToForteNameTable"] or name in self._tables["setToForteNameTableLeftPacking"]:
+        elif name in name_tables["setToForteNameTable"] or name in name_tables["setToForteNameTableLeftPacking"]:
             return True
         return False
 
@@ -360,19 +401,31 @@ class SetClass12:
         :param name: The name
         :return:
         """
+        global name_tables
+        valid = True
         pname = ""
         if "[" in name and "-" in name:
             pname = name.split("[")[1]
         elif "-" in name:
-            if name in self._tables["forteToSetNameTable"]:
-                pname = self._tables["forteToSetNameTable"][name]
-        elif name in self._tables["setToForteNameTable"]:
+            # Allow Forte names without Z
+            name2 = name.split('-')
+            name2 = "-Z".join(name2)
+            if name in name_tables["forteToSetNameTable"]:
+                pname = name_tables["forteToSetNameTable"][name]
+            elif name2 in name_tables["forteToSetNameTable"]:
+                pname = name_tables["forteToSetNameTable"][name2]
+            else:
+                valid = False
+        elif name in name_tables["setToForteNameTable"]:
             pname = name
-        pname = pname.replace("[", "")
-        pname = pname.replace("]", "")
-        pname = [c for c in pname]
-        pcset = set([pitch.PitchClass12(self._tables["hexToInt"][pn]) for pn in pname])
-        self.pcset = pcset
+        else:
+            valid = False
+        if valid:
+            pname = pname.replace("[", "")
+            pname = pname.replace("]", "")
+            pname = [c for c in pname]
+            pcset = set([pitch.PitchClass12(name_tables["hexToInt"][pn]) for pn in pname])
+            self.pcset = pcset
 
     @staticmethod
     def _invert(pcseg: list):
@@ -383,7 +436,7 @@ class SetClass12:
         """
         pcseg2 = []
         for pc in pcseg:
-            pcseg2.append(pitch.PitchClass12((pc * 11) % 12))
+            pcseg2.append(pitch.PitchClass12((pc * 11) % SetClass12.NUM_PC))
         return pcseg2
 
     @staticmethod
@@ -403,36 +456,39 @@ class SetClass12:
         Makes the names for the set-class
         :return:
         """
-        pc_name_list = [self._tables["hexChars"][pc.pc] for pc in self._pcset]
+        global name_tables
+        pc_name_list = [name_tables["hexChars"][pc.pc] for pc in self._pcset]
         pc_name_list.sort()
         self._name_prime = "[" + "".join(pc_name_list) + "]"
         if self._name_prime != "[]":
-            if self._name_prime in self._tables["setToForteNameTableLeftPacking"]:
-                self._name_forte = self._tables["setToForteNameTableLeftPacking"][self._name_prime]
+            if self._name_prime in name_tables["setToForteNameTableLeftPacking"]:
+                self._name_forte = name_tables["setToForteNameTableLeftPacking"][self._name_prime]
             else:
-                self._name_forte = self._tables["setToForteNameTable"][self._name_prime]
+                self._name_forte = name_tables["setToForteNameTable"][self._name_prime]
         else:
             self._name_forte = "0-1"
         self._name_carter = ""
-        if self._name_forte in self._tables["forteToCarterNameTable"]:
-            self._name_carter = self._tables["forteToCarterNameTable"][self._name_forte]
+        if self._name_forte in name_tables["forteToCarterNameTable"]:
+            self._name_carter = name_tables["forteToCarterNameTable"][self._name_forte]
         self._name_morris = "(" + self._name_forte + ")" + self._name_prime
         forte_num = self.name_forte.split('-')[1]
         forte_num = forte_num.strip('Z')
         self._num_forte = int(forte_num)
-        self._ic_vector = [0, 0, 0, 0, 0, 0, 0]
+        self._ic_vector_long = [0 for i in range(SetClass12.NUM_PC // 2 + 1)]
         for pc in self._pcset:
             for pc2 in self._pcset:
-                interval = (pc2.pc - pc.pc) % 12
-                if interval < 0:
-                    interval += 12
-                if interval > 6:
-                    interval = interval * -1 + 12
-                self._ic_vector[interval] += 1
-        for i in range(1, 7):
-            self._ic_vector[i] //= 2
-        c = get_corpus(self._pcset)
-        self._dsym = 24 / len(c)
+                interval = (pc2.pc - pc.pc) % SetClass12.NUM_PC
+                if interval > SetClass12.NUM_PC // 2:
+                    interval = interval * -1 + SetClass12.NUM_PC
+                self._ic_vector_long[interval] += 1
+        for i in range(1, len(self._ic_vector_long)):
+            self._ic_vector_long[i] //= 2
+        self._ic_vector = self._ic_vector_long[1:]
+        if len(self._pcset) > 0:
+            c = get_corpus(self._pcset)
+            self._dsym = (SetClass12.NUM_PC * 2) // len(c)
+        else:
+            self._dsym = SetClass12.NUM_PC * 2
 
     @staticmethod
     def _weight_from_right(pclists: list):
@@ -444,7 +500,7 @@ class SetClass12:
         for i in range(len(pclists[0]) - 1, -1, -1):
             if len(pclists) > 1:
                 # The smallest item at the current index
-                smallest_item = 11
+                smallest_item = SetClass12.NUM_PC - 1
 
                 # Identify the smallest item at the current index
                 for j in range(len(pclists)):
@@ -472,7 +528,7 @@ class SetClass12:
         """
         if len(pclists) > 1:
             # The smallest item at the current index
-            smallest_item = 11
+            smallest_item = SetClass12.NUM_PC - 1
 
             # Identify the smallest item at the last index
             for j in range(0, len(pclists)):
@@ -490,7 +546,7 @@ class SetClass12:
             # Continue processing, but now pack from the left
             for i in range(0, len(pclists[0])):
                 if len(pclists) > 1:
-                    smallest_item = 11
+                    smallest_item = SetClass12.NUM_PC - 1
 
                     # Identify the smallest item at the current index
                     for j in range(len(pclists)):
@@ -513,14 +569,16 @@ class SetClass24:
     """
     Represents a pc-set-class
     """
+    NUM_PC = 24
 
     def __init__(self, pcset=None):
         """
         Creates a SetClass
         :param pcset: A pcset to initialize the SetClass
         """
-        self._dsym = 12
-        self._ic_vector = [0 for i in range(13)]
+        self._dsym = SetClass24.NUM_PC * 2
+        self._ic_vector = [0 for i in range(SetClass24.NUM_PC // 2)]
+        self._ic_vector_long = [0 for i in range(SetClass24.NUM_PC // 2 + 1)]
         self._name_prime = ""
         self._pcset = set()
         self._weight_right = True
@@ -545,7 +603,8 @@ class SetClass24:
         return self.pcset != other.pcset
 
     def __repr__(self):
-        return "<pctheory.pcset.SetClass24 object at " + str(id(self)) + ">: " + repr(self._pcset)
+        # return "<pctheory.pcset.SetClass24 object at " + str(id(self)) + ">: " + repr(self._pcset)
+        return self._name_prime
 
     def __str__(self):
         return self._name_prime
@@ -567,14 +626,36 @@ class SetClass24:
         return self._ic_vector
 
     @property
-    def ic_vector_string(self):
+    def ic_vector_long(self):
         """
-        Gets the IC vector
+        Gets the IC vector in long format
+        :return: The IC vector in long format
+        """
+        return self._ic_vector_long
+
+    @property
+    def ic_vector_str(self):
+        """
+        Gets the IC vector as a string
         :return: The IC vector
         """
         s = "["
-        for a in self._ic_vector:
-            s += str(a)
+        for a in range(len(self._ic_vector) - 1):
+            s += f"{self._ic_vector[a]}, "
+        s += str(self._ic_vector[len(self._ic_vector) - 1])
+        s += "]"
+        return s
+
+    @property
+    def ic_vector_long_str(self):
+        """
+        Gets the IC vector in long format as a string
+        :return: The IC vector in long format
+        """
+        s = "["
+        for a in range(len(self._ic_vector_long) - 1):
+            s += f"{self._ic_vector_long[a]}, "
+        s += str(self._ic_vector_long[len(self._ic_vector_long) - 1])
         s += "]"
         return s
 
@@ -649,7 +730,7 @@ class SetClass24:
                 for i2 in range(0, len(lists_to_weight[i])):
                     lists_to_weight[i][i2] -= initial_pitch
                     if lists_to_weight[i][i2] < 0:
-                        lists_to_weight[i][i2] += 24
+                        lists_to_weight[i][i2] += SetClass24.NUM_PC
                 lists_to_weight[i].sort()
 
             # Add inverted forms
@@ -663,7 +744,7 @@ class SetClass24:
                 for i2 in range(0, len(lists_to_weight[i])):
                     lists_to_weight[i + len(pclist)][i2] -= initial_pitch
                     if lists_to_weight[i + len(pclist)][i2] < 0:
-                        lists_to_weight[i + len(pclist)][i2] += 24
+                        lists_to_weight[i + len(pclist)][i2] += SetClass24.NUM_PC
                 lists_to_weight[i + len(pclist)].sort()
 
             # Weight lists
@@ -686,7 +767,7 @@ class SetClass24:
         """
         tr = []
         inv = invert(sc.pcset)
-        for i in range(24):
+        for i in range(SetClass24.NUM_PC):
             tr.append(transpose(sc.pcset, i))
             tr.append(transpose(inv, i))
         for pcs in tr:
@@ -703,7 +784,7 @@ class SetClass24:
         csc.pcset = get_complement(self._pcset)
         return csc
 
-    def get_subset_classes(self):
+    def get_abstract_subset_classes(self):
         """
         Gets a set of subset-classes contained in this SetClass
         :return:
@@ -740,7 +821,7 @@ class SetClass24:
         """
         pcseg2 = []
         for pc in pcseg:
-            pcseg2.append(pitch.PitchClass24((pc * 23) % 24))
+            pcseg2.append(pitch.PitchClass24((pc * (SetClass24.NUM_PC - 1)) % SetClass24.NUM_PC))
         return pcseg2
 
     @staticmethod
@@ -763,17 +844,21 @@ class SetClass24:
         pcseg = list(self._pcset)
         pcseg.sort()
         self._name_prime = str(pcseg)
-        self._ic_vector = [0 for i in range(13)]
+        self._ic_vector_long = [0 for i in range(13)]
         for pc in self._pcset:
             for pc2 in self._pcset:
-                interval = (pc2.pc - pc.pc) % 24
-                if interval > 12:
-                    interval = (interval * 11) % 12
-                self._ic_vector[interval] += 1
-        for i in range(1, 13):
-            self._ic_vector[i] //= 2
-        c = get_corpus(self._pcset)
-        self._dsym = 48 / len(c)
+                interval = (pc2.pc - pc.pc) % SetClass24.NUM_PC
+                if interval > SetClass24.NUM_PC // 2:
+                    interval = interval * -1 + SetClass24.NUM_PC
+                self._ic_vector_long[interval] += 1
+        for i in range(1, len(self._ic_vector_long)):
+            self._ic_vector_long[i] //= 2
+        self._ic_vector = self._ic_vector_long[1:]
+        if len(self._pcset) > 0:
+            c = get_corpus(self._pcset)
+            self._dsym = (SetClass24.NUM_PC * 2) // len(c)
+        else:
+            self._dsym = (SetClass24.NUM_PC * 2)
 
     @staticmethod
     def _weight_from_right(pclists: list):
@@ -785,7 +870,7 @@ class SetClass24:
         for i in range(len(pclists[0]) - 1, -1, -1):
             if len(pclists) > 1:
                 # The smallest item at the current index
-                smallest_item = 23
+                smallest_item = SetClass24.NUM_PC - 1
 
                 # Identify the smallest item at the current index
                 for j in range(len(pclists)):
@@ -813,7 +898,7 @@ class SetClass24:
         """
         if len(pclists) > 1:
             # The smallest item at the current index
-            smallest_item = 11
+            smallest_item = SetClass24.NUM_PC - 1
 
             # Identify the smallest item at the last index
             for j in range(0, len(pclists)):
@@ -831,7 +916,7 @@ class SetClass24:
             # Continue processing, but now pack from the left
             for i in range(0, len(pclists[0])):
                 if len(pclists) > 1:
-                    smallest_item = 11
+                    smallest_item = SetClass24.NUM_PC - 1
 
                     # Identify the smallest item at the current index
                     for j in range(len(pclists)):
@@ -848,6 +933,30 @@ class SetClass24:
                 else:
                     break
         return pclists[0]
+
+
+def find_utos(pcset1: set, pcset2: set):
+    """
+    Finds all UTOs that produce a set that contains transformed_pcset as a proper or improper subset.
+    If the list of UTOs is empty, transformed_pcset is not an abstract subset of original_pcset.
+    :param pcset1: The original pcset
+    :param pcset2: The new pcset
+    :return: A list of UTOs
+    """
+    utos = None
+    utos_final = set()
+    if len(pcset1) == len(pcset2) == 0:
+        return utos
+    else:
+        t = type(next(iter(pcset1)))
+        if t == pitch.PitchClass12:
+            utos = transformations.get_utos12()
+        else:
+            utos = transformations.get_utos24()
+        for u in utos:
+            if pcset2.issubset(utos[u].transform(pcset1)):
+                utos_final.add(utos[u])
+        return utos_final
 
 
 def get_complement(pcset: set):
@@ -883,32 +992,8 @@ def get_corpus(pcset: set):
             n = 24
         for i in range(n):
             pcsets.add(frozenset(uto[f"T{i}"].transform(pcset)))
-            pcsets.add(frozenset(uto[f"T{i}I"].transform(pcset)))
+            pcsets.add(frozenset(uto[f"T{i}M11"].transform(pcset)))
     return pcsets
-
-
-def get_uto(original_pcset: set, transformed_pcset: set):
-    """
-    Finds all UTOs that produce a set that contains transformed_pcset as a proper or improper subset.
-    If the list of UTOs is empty, transformed_pcset is not an abstract subset of original_pcset.
-    :param original_pcset: The original pcset
-    :param transformed_pcset: The new pcset
-    :return: A list of UTOs
-    """
-    utos = None
-    utos_final = {}
-    if len(original_pcset) == len(transformed_pcset) == 0:
-        return utos
-    else:
-        t = type(next(iter(original_pcset)))
-        if t == pitch.PitchClass12:
-            utos = transformations.get_utos12()
-        else:
-            utos = transformations.get_utos24()
-        for u in utos:
-            if transformed_pcset.issubset(utos[u].transform(original_pcset)):
-                utos_final[u] = utos[u]
-        return utos_final
 
 
 def invert(pcset: set):
@@ -929,29 +1014,23 @@ def invert(pcset: set):
 def make_pcset12(*args):
     """
     Makes a pcset
-    :param *args: Pcs
+    :param args: Pcs
     :return: A pcset
     """
-    pcset = set()
     if type(args[0]) == list:
         args = args[0]
-    for pc in args:
-        pcset.add(pitch.PitchClass12(pc))
-    return pcset
+    return {pitch.PitchClass24(pc) for pc in args}
 
 
 def make_pcset24(*args):
     """
     Makes a pcset
-    :param *args: Pcs
+    :param args: Pcs
     :return: A pcset
     """
-    pcset = set()
     if type(args[0]) == list:
         args = args[0]
-    for pc in args:
-        pcset.add(pitch.PitchClass24(pc))
-    return pcset
+    return {pitch.PitchClass24(pc) for pc in args}
 
 
 def make_subset_graph(set_class, smallest_cardinality=1, show_graph=False, size=(800, 1100)):
@@ -964,7 +1043,7 @@ def make_subset_graph(set_class, smallest_cardinality=1, show_graph=False, size=
     :return: A graph
     """
     g = networkx.DiGraph()
-    scs = list(set_class.get_subset_classes())
+    scs = list(set_class.get_abstract_subset_classes())
     for s in scs:
         if len(s.pcset) >= smallest_cardinality:
             g.add_node(s.name_prime)
@@ -1080,6 +1159,23 @@ def transpose(pcset: set, n: int):
         for pc in pcset:
             pcset2.add(t(pc.pc + n))
     return pcset2
+
+
+def transpositional_combination(pcset1: set, pcset2: set):
+    """
+    Transpositionally combines (TC) two pcsets. This is Boulez's "multiplication."
+    :param pcset1: A pcset
+    :param pcset2: A pcset
+    :return: The TC pcset
+    """
+    pcset3 = set()
+    if len(pcset1) > 0 and len(pcset2) > 0:
+        # Need to support both PitchClass12 and PitchClass24, so use a type alias
+        t = type(next(iter(pcset1)))
+        for pc2 in pcset2:
+            for pc1 in pcset1:
+                pcset3.add(t(pc1.pc + pc2.pc))
+    return pcset3
 
 
 def visualize(pcset: set):

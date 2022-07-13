@@ -21,9 +21,289 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from pctheory import pitch, transformations
+from pctheory import pitch, transformations, util
 import music21
 import numpy
+
+
+class Sieve12:
+    """
+    Represents a chromatic sieve
+    """
+    def __init__(self, tuples, base_pitch):
+        """
+        Creates a Sieve12
+        :param tuples: A collection of tuples to add to the sieve.
+        :param base_pitch: Pitch 0 for the sieve. This pitch does not actually have to be
+        in the sieve - it will just serve as the 0 reference point.
+        """
+        self._tuples = set()
+        self._intervals = []
+        self._period = 0
+        self._base_pitch = pitch.Pitch12(base_pitch.p) if type(base_pitch) == pitch.Pitch12 \
+            else pitch.Pitch12(base_pitch)
+        self.add_tuples(tuples)
+
+    @property
+    def base_pitch(self):
+        """
+        The base pitch of the Sieve12 (pitch 0)
+        :return: The base pitch
+        """
+        return self._base_pitch
+
+    @property
+    def intervals(self):
+        """
+        The intervallic succession of the Sieve12
+        :return: The intervallic succession
+        """
+        return self._intervals
+
+    @property
+    def period(self):
+        """
+        The period of the Sieve12
+        :return: The period
+        """
+        return self._period
+
+    @property
+    def tuples(self):
+        """
+        The tuples in the Sieve12
+        :return: The tuples
+        """
+        return self._tuples
+
+    def add_tuples(self, *args):
+        """
+        Adds one or more tuples to the Sieve12
+        :param args: One or more tuples
+        :return:
+        """
+        lcm_list = set()
+        if type(args[0]) == set or type(args[0]) == list or type(args[0]) == tuple:
+            args = args[0]
+        for tup in args:
+            self._tuples.add(tup)
+        for tup in self._tuples:
+            lcm_list.add(tup[0])
+        self._period = util.lcm(lcm_list)
+        r = self.get_range(pitch.Pitch12(self._base_pitch.p), pitch.Pitch12(self._base_pitch.p + self._period))
+        r = list(r)
+        r.sort()
+        for i in range(1, len(r)):
+            self._intervals.append(r[i].p - r[i - 1].p)
+
+    def get_range(self, p0, p1):
+        """
+        Gets all pitches in the sieve between p0 and p1
+        :param p0: The low pitch
+        :param p1: The high pitch
+        :return: A pset
+        """
+        ps = set()
+        p_low = p0.p if type(p0) == pitch.Pitch12 else p0
+        p_high = p1.p + 1 if type(p1) == pitch.Pitch12 else p1 + 1
+        for j in range(p_low, p_high):
+            i = j - self._base_pitch.p
+            if i >= 0:
+                for tup in self._tuples:
+                    if i % tup[0] == tup[1]:
+                        ps.add(pitch.Pitch12(j))
+        return ps
+
+    def intersection(self, sieve):
+        """
+        Intersects two Sieve12s
+        :param sieve: A Sieve12
+        :return: A new Sieve12. It will have the same base pitch as self.
+        """
+        t = set()
+        for tup1 in self._tuples:
+            for tup2 in sieve.tuples:
+                if tup1 == tup2:
+                    t.add(tup1)
+        return Sieve12(t, self._base_pitch)
+
+    def is_in_sieve(self, p):
+        """
+        Whether or not a pitch or pset is in the sieve
+        :param p: A pitch (Pitch12 or int) or pset
+        :return: True or False
+        """
+        ps = None
+        if type(p) == set:
+            ps = p
+        elif type(p) == pitch.Pitch12:
+            ps = {p}
+        elif type(p) == int:
+            ps = {pitch.Pitch12(p)}
+        for q in ps:
+            i = q.p - self._base_pitch.p
+            if i < 0:
+                return False
+            else:
+                for tup in self._tuples:
+                    if i % tup[0] == tup[1]:
+                        break
+                else:
+                    return False
+        return True
+
+    def union(self, sieve):
+        """
+        Unions two Sieve12s
+        :param sieve: A Sieve12
+        :return: A new Sieve12. It will have the same base pitch as self.
+        """
+        t = set()
+        for tup in self._tuples:
+            t.add(tup)
+        for tup in sieve.tuples:
+            t.add(tup)
+        return Sieve12(t, self._base_pitch)
+
+
+class Sieve24:
+    """
+    Represents a microtonal sieve
+    """
+    def __init__(self, tuples, base_pitch):
+        """
+        Creates a Sieve24
+        :param tuples: A collection of tuples to add to the sieve.
+        :param base_pitch: Pitch 0 for the sieve. This pitch does not actually have to be
+        in the sieve - it will just serve as the 0 reference point.
+        """
+        self._tuples = set()
+        self._ints = []
+        self._period = 0
+        self._base_pitch = pitch.Pitch24(base_pitch.p) if type(base_pitch) == pitch.Pitch24 \
+            else pitch.Pitch24(base_pitch)
+        self.add_tuples(tuples)
+
+    @property
+    def base_pitch(self):
+        """
+        The base pitch of the Sieve24 (pitch 0)
+        :return: The base pitch
+        """
+        return self._base_pitch
+
+    @property
+    def ints(self):
+        """
+        The intervallic succession of the Sieve24
+        :return: The intervallic succession
+        """
+        return self._ints
+
+    @property
+    def period(self):
+        """
+        The period of the Sieve24
+        :return: The period
+        """
+        return self._period
+
+    @property
+    def tuples(self):
+        """
+        The tuples in the Sieve24
+        :return: The tuples
+        """
+        return self._tuples
+
+    def add_tuples(self, *args):
+        """
+        Adds one or more tuples to the Sieve24
+        :param args: One or more tuples
+        :return:
+        """
+        lcm_list = set()
+        if type(args[0]) == set or type(args[0]) == list or type(args[0]) == tuple:
+            args = args[0]
+        for tup in args:
+            self._tuples.add(tup)
+        for tup in self._tuples:
+            lcm_list.add(tup[0])
+        self._period = util.lcm(lcm_list)
+        r = self.get_range(pitch.Pitch24(self._base_pitch.p), pitch.Pitch24(self._base_pitch.p + self._period))
+        r = list(r)
+        r.sort()
+        for i in range(1, len(r)):
+            self._ints.append(r[i].p - r[i-1].p)
+
+    def get_range(self, p0, p1):
+        """
+        Gets all pitches in the sieve between p0 and p1
+        :param p0: The low pitch
+        :param p1: The high pitch
+        :return: A pset
+        """
+        ps = set()
+        p_low = p0.p if type(p0) == pitch.Pitch24 else p0
+        p_high = p1.p + 1 if type(p1) == pitch.Pitch24 else p1 + 1
+        for j in range(p_low, p_high):
+            i = j - self._base_pitch.p
+            if i >= 0:
+                for tup in self._tuples:
+                    if i % tup[0] == tup[1]:
+                        ps.add(pitch.Pitch24(j))
+        return ps
+
+    def intersection(self, sieve):
+        """
+        Intersects two Sieve24s
+        :param sieve: A Sieve24
+        :return: A new Sieve24. It will have the same base pitch as self.
+        """
+        t = set()
+        for tup1 in self._tuples:
+            for tup2 in sieve.tuples:
+                if tup1 == tup2:
+                    t.add(tup1)
+        return Sieve24(t, self._base_pitch)
+
+    def is_in_sieve(self, p):
+        """
+        Whether or not a pitch or pset is in the sieve
+        :param p: A pitch (Pitch24 or int) or pset
+        :return: True or False
+        """
+        ps = None
+        if type(p) == set:
+            ps = p
+        elif type(p) == pitch.Pitch24:
+            ps = {p}
+        elif type(p) == int:
+            ps = {pitch.Pitch24(p)}
+        for q in ps:
+            i = q.p - self._base_pitch.p
+            if i < 0:
+                return False
+            else:
+                for tup in self._tuples:
+                    if i % tup[0] == tup[1]:
+                        break
+                else:
+                    return False
+        return True
+
+    def union(self, sieve):
+        """
+        Unions two Sieve24s
+        :param sieve: A Sieve24
+        :return: A new Sieve24. It will have the same base pitch as self.
+        """
+        t = set()
+        for tup in self._tuples:
+            t.add(tup)
+        for tup in sieve.tuples:
+            t.add(tup)
+        return Sieve24(t, self._base_pitch)
 
 
 def fb_class(pset: set, p0: int):
@@ -34,7 +314,7 @@ def fb_class(pset: set, p0: int):
     :return: The FB-class as a list of integers
     """
     intlist = []
-    n = 12 if type(iter(next(pset))) == pitch.PitchClass12 else 24
+    n = 12 if type(next(iter(pset))) == pitch.PitchClass12 else 24
     for p in pset:
         intlist.append((p.p - p0) % n)
     intlist.sort()
@@ -50,7 +330,7 @@ def invert(pset: set):
     :return: The inverted pset
     """
     pset2 = set()
-    t = type(iter(next(pset)))
+    t = type(next(iter(pset)))
     for p in pset:
         pset2.add(t(p.p * -1))
     return pset2
@@ -73,6 +353,28 @@ def m21_make_pset(item):
     else:
         raise TypeError("Unsupported music21 type")
     return pset2
+
+
+def make_pset12(*args):
+    """
+    Makes a pset
+    :param *args: Ps
+    :return: A pset
+    """
+    if type(args[0]) == list:
+        args = args[0]
+    return {pitch.Pitch12(p) for p in args}
+
+
+def make_pset24(*args):
+    """
+    Makes a pset
+    :param *args: Ps
+    :return: A pset
+    """
+    if type(args[0]) == list:
+        args = args[0]
+    return {pitch.Pitch24(p) for p in args}
 
 
 def p_ic_matrix(pset: set):
@@ -131,7 +433,7 @@ def pcint_class(pset: set):
     """
     pseg = list(pset)
     pseg.sort()
-    n = 12 if type(iter(next(pset))) == pitch.PitchClass12 else 24
+    n = 12 if type(next(iter(pset))) == pitch.PitchClass12 else 24
     intlist = []
     for i in range(1, len(pseg)):
         intlist.append((pseg[i].p - pseg[i - 1].p) % n)
@@ -170,7 +472,7 @@ def subsets(pset: set):
     :return: A list containing all subsets of the pset
     """
     total = 2 ** len(pset)
-    t = type(iter(next(pset)))
+    t = type(next(iter(pset)))
     sub = []
     pseg = list(pset)
     pseg.sort()
@@ -181,6 +483,18 @@ def subsets(pset: set):
                 sub[index].append(t(pseg[i].p))
     sub.sort()
     return sub
+
+
+def to_pcset(pset: set):
+    """
+    Makes a pcset out of a pset
+    :param pset: A pset
+    :return: A pcset
+    """
+    if type(next(iter(pset))) == pitch.Pitch12:
+        return {pitch.PitchClass12(p.pc) for p in pset}
+    else:
+        return {pitch.PitchClass24(p.pc) for p in pset}
 
 
 def transform(pset: set, transformation: transformations.UTO):
@@ -204,7 +518,7 @@ def transpose(pset: set, n: int):
     :return: The transposed pset
     """
     pset2 = set()
-    t = type(iter(next(pset)))
+    t = type(next(iter(pset)))
     for p in pset:
         pset2.add(t(p.p + n))
     return pset2
